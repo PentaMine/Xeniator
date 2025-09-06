@@ -1,10 +1,8 @@
+import argparse
 import time
-from typing import Tuple
 
 import PIL
 import pyautogui
-import argparse
-import webbrowser
 
 
 def get_pixel_position_from_pin() -> pyautogui.Point:
@@ -13,8 +11,8 @@ def get_pixel_position_from_pin() -> pyautogui.Point:
 
 
 def get_closest_in_palette_index(color: tuple[int, int, int, int]) -> int:
-    if color[3] < 128:
-        return len(palette) -1
+    if len(color) == 4 and color[3] < 128:
+        return len(palette) - 1
     closest = None
     min_distance = float("inf")
     for i in range(len(palette)):
@@ -87,10 +85,13 @@ print("pazi da je donji desni kut slike vidljiv na platnu :>")
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--click-delay", "-cd", type=int, help="time between clicks (ms)")
+ap.add_argument("--skip-paint", "-s", type=bool, help="time between clicks (ms)")
 
 args = ap.parse_args()
 clickDelay = args.click_delay / 1000
+skipPaint = args.skip_paint
 img = PIL.Image.open('img.png')
+img.convert("RGBA")
 palette = [(0, 0, 0, 255),
            (60, 60, 60, 255),
            (120, 120, 120, 255),
@@ -133,18 +134,45 @@ pyautogui.click(xIcon, duration=clickDelay)
 time.sleep(2)
 paintIcon = pyautogui.locateCenterOnScreen("imgs/brush.png", grayscale=True, confidence=0.95)
 pyautogui.click(paintIcon, duration=clickDelay)
-
+pyautogui.keyDown("space")
+time.sleep(0.1)
+pyautogui.keyUp("space")
 width, _ = pyautogui.size()
 p = img.load()
 w, h = img.size
+
+pyautogui.screenshot("imgs/state.png", region=(
+    xc.get_coordinate_pixel(0, 0).x,
+    xc.get_coordinate_pixel(0, 0).y,
+    round((w) * xc.stepHorizontal) + 1,
+    round((h) * xc.stepHorizontal) + 1
+))
+
+state = PIL.Image.open('imgs/state.png')
+state.convert("RGBA")
+s = state.load()
+
+
 currentColorIndex = -1
 for i in range(h):
     for ii in range(w):
-        if p[ii, i][-1] == 0:
+        print(p[ii, i])
+        if p[ii, i] == 0 or p[ii, i][-1] == 0:
             continue
+
         colorIndex = get_closest_in_palette_index(p[ii, i])
+
+        currentColor = s[round(ii * xc.stepHorizontal), round(i * xc.stepVertical)]
+        print(round(ii * xc.stepHorizontal), round(i * xc.stepVertical), currentColor, palette[colorIndex][:3])
+
+        if currentColor == palette[colorIndex][:3]:
+            continue
+
         if currentColorIndex != colorIndex:
             pyautogui.click(40 + colorIndex * (1840 / 31), 930, duration=clickDelay)
             currentColorIndex = colorIndex
 
         pyautogui.click(xc.get_coordinate_pixel(ii, i), duration=clickDelay)
+
+if not skipPaint:
+    pyautogui.click(paintIcon, duration=clickDelay)
